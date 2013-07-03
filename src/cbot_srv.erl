@@ -12,7 +12,8 @@ start_link(Hostname, Port) ->
 
 init({ Hostname, Port }) ->
     io:format("connecting to ~s:~b~n", [Hostname, Port]),
-    {ok, Sock} = gen_tcp:connect(Hostname, Port, [ binary, { packet, 0 } ]),
+    Opts = [ binary, { packet, line }, {buffer, ( 1024 * 1024 ) } ],
+    {ok, Sock} = gen_tcp:connect(Hostname, Port, Opts),
     { ok, #state{ game_server = Sock, state = login } }.
 
 handle_info( {tcp, Socket, Data}, #state{game_server = Socket} = State)
