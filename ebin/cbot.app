@@ -3,9 +3,10 @@
   { module, [] },
   { applications, [ kernel ] },
   { mod, { cbot, [] } },
-  { modules, [ cbot, cbot_srv ] },
+  { modules, [ cbot, cbot_srv, cbot_ctrl ] },
   { env, [ 
-    { host, "192.168.1.2" },
-    { port, 6666 }
+    { host, "192.168.1.4" },
+    { port, 6666 },
+    { bot_number, 15 }
   ]}
 ]}.

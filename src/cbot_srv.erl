@@ -2,30 +2,26 @@
 
 -behaviour(gen_server).
 
--export([start_link/2]).
+-export([start_link/3]).
 -export([init/1, terminate/2, handle_info/2]).
 
 -record(state, { game_server, name, state :: login | game } ).
 
-start_link(Hostname, Port) ->
-    gen_server:start_link(?MODULE, { Hostname, Port }, []).
+start_link(Hostname, Port, Name) ->
+    gen_server:start_link(?MODULE, [Hostname, Port, Name], []).
 
-init({ Hostname, Port }) ->
-    io:format("connecting to ~s:~b~n", [Hostname, Port]),
+init([ Hostname, Port, Name ]) ->
     Opts = [ binary, { packet, line }, {buffer, ( 1024 * 1024 ) } ],
     {ok, Sock} = gen_tcp:connect(Hostname, Port, Opts),
-    { ok, #state{ game_server = Sock, state = login } }.
+    { ok, #state{ game_server = Sock, state = login, name = Name } }.
 
-handle_info( {tcp, Socket, Data}, #state{game_server = Socket} = State)
+handle_info( {tcp, Socket, _Data}, #state{game_server = Socket} = State)
   when State#state.state == login ->
-    io:format("recv:~w~n", [Data]),
-    Name = <<"nigga">>,
-    ok = gen_tcp:send(Socket, hello_msg(Name)),
-    { noreply, State#state{ name = Name, state = game } };
+    ok = gen_tcp:send(Socket, hello_msg(State#state.name)),
+    { noreply, State#state{ state = game } };
 
 handle_info( {tcp, Socket, Data}, #state{game_server = Socket} = State)
   when State#state.state == game ->
-    io:format("recv:~w~n", [Data]),
     case make_turn(Data, State#state.name) of
         { reply, Reply } ->
             ok = gen_tcp:send(Socket, Reply);
@@ -35,8 +31,7 @@ handle_info( {tcp, Socket, Data}, #state{game_server = Socket} = State)
     { noreply, State };
 
 handle_info( {tcp_closed, Socket}, #state{game_server = Socket} = State) ->
-    io:format("connection closed"),
-    { stop, tcp_closed, State }.
+    { stop, normal, State }.
 
 terminate(_, _) ->
     ok.
@@ -48,7 +43,8 @@ make_turn(GameState, Me) ->
     { struct, State } = mochijson2:decode(GameState),
     case proplists:get_value(<<"activePlayer">>, State) of
         Me ->
-            Cmd = mochijson2:encode({ struct, [ { "optionNumber", 0 } ] }),
+            Num = length(proplists:get_value(<<"options">>, State)) - 1,
+            Cmd = mochijson2:encode({ struct, [ { "optionNumber", Num } ] }),
             { reply, Cmd };
         _ ->
             noreply
