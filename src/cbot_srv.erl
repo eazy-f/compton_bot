@@ -2,30 +2,42 @@
 
 -behaviour(gen_server).
 
--export([start_link/2]).
+-export([start_link/3]).
 -export([init/1, terminate/2, handle_info/2]).
 
--record(state, { game_server, name, state :: login | game } ).
+-record(state, {
+    host,
+    port,
+    name,
+    sock,
+    state :: disconnected | login | game
+}).
 
-start_link(Hostname, Port) ->
-    gen_server:start_link(?MODULE, { Hostname, Port }, []).
+start_link(Hostname, Port, Name) ->
+    gen_server:start_link(?MODULE, { Hostname, Port, Name }, []).
 
-init({ Hostname, Port }) ->
-    io:format("connecting to ~s:~b~n", [Hostname, Port]),
+init({ Hostname, Port, Name }) ->
+    self() ! connect,
+    { ok, #state{
+              state = disconnected,
+              host = Hostname,
+              port = Port,
+              name = Name
+    }}.
+
+handle_info( connect, #state{ host = Hostname, port = Port } = State )
+  when State#state.state == disconnected ->
     Opts = [ binary, { packet, line }, {buffer, ( 1024 * 1024 ) } ],
     {ok, Sock} = gen_tcp:connect(Hostname, Port, Opts),
-    { ok, #state{ game_server = Sock, state = login } }.
+    { noreply, State#state{ sock = Sock, state = login } };
 
-handle_info( {tcp, Socket, Data}, #state{game_server = Socket} = State)
+handle_info( {tcp, Socket, _Data}, #state{ sock = Socket, name = Name } = State)
   when State#state.state == login ->
-    io:format("recv:~w~n", [Data]),
-    Name = <<"nigga">>,
     ok = gen_tcp:send(Socket, hello_msg(Name)),
     { noreply, State#state{ name = Name, state = game } };
 
-handle_info( {tcp, Socket, Data}, #state{game_server = Socket} = State)
+handle_info( {tcp, Socket, Data}, #state{sock = Socket} = State)
   when State#state.state == game ->
-    io:format("recv:~w~n", [Data]),
     case make_turn(Data, State#state.name) of
         { reply, Reply } ->
             ok = gen_tcp:send(Socket, Reply);
@@ -34,9 +46,9 @@ handle_info( {tcp, Socket, Data}, #state{game_server = Socket} = State)
     end,
     { noreply, State };
 
-handle_info( {tcp_closed, Socket}, #state{game_server = Socket} = State) ->
-    io:format("connection closed"),
-    { stop, tcp_closed, State }.
+handle_info( {tcp_closed, Socket}, #state{sock = Socket} = State) ->
+    self() ! connect,
+    { noreply, State#state{ state = disconnected } }.
 
 terminate(_, _) ->
     ok.
