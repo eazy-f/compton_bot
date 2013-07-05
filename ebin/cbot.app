@@ -1,7 +1,7 @@
 { application, cbot, [
   { description, "Dominion game Compton bot" },
   { module, [] },
-  { applications, [ kernel ] },
+  { applications, [ kernel, stdlib, mochiweb ] },
   { mod, { cbot, [] } },
   { modules, [ cbot, cbot_srv ] },
   { env, [ 

@@ -58,9 +58,11 @@ hello_msg(Name) ->
 
 make_turn(GameState, Me) ->
     { struct, State } = mochijson2:decode(GameState),
-    case proplists:get_value(<<"activePlayer">>, State) of
-        Me ->
-            Cmd = mochijson2:encode({ struct, [ { "optionNumber", 0 } ] }),
+    case proplists:get_value(<<"options">>, State) of
+        Options when is_list(Options) ->
+            { _, _, Time } = now(),
+            N = length(Options),
+            Cmd = mochijson2:encode({ struct, [ { "optionNumber", Time rem N } ] }),
             { reply, Cmd };
         _ ->
             noreply
